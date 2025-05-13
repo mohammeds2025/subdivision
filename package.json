@@ -1,0 +1,14 @@
+{
+  "name": "pdf-merge-bilingual",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "pdf-lib": "^1.17.1",
+    "node-fetch": "^2.6.11"
+  }
+}

@@ -1,0 +1,99 @@
+<!DOCTYPE html><html lang="en"><meta charset="utf-8">
+<title>PDF Merge | دمج ملفات PDF</title>
+<style>
+body{font-family:sans-serif;direction:rtl;padding:25px;background:#eef2ff;}
+.container{max-width:700px;margin:auto;background:#fff;padding:25px;border-radius:14px;box-shadow:0 4px 16px rgba(0,0,0,.08);}
+input{padding:8px 12px;border:1px solid #ccc;border-radius:8px;width:110px;text-align:center;margin:4px;}
+button{padding:9px 22px;background:#28a745;color:#fff;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
+#wrap{margin-top:18px}
+#prog{height:16px;background:#e0e0e0;border-radius:10px;overflow:hidden}
+#prog span{display:block;height:100%;width:0;background:#28a745}
+#pct{margin-top:4px;font-size:13px;color:#444}
+a{display:block;margin:6px 0;color:#007bff;font-weight:bold;text-decoration:none}
+#download{display:none;margin-top:14px;background:#007bff}
+.lang-toggle{margin-bottom:20px}
+</style>
+<div class="container">
+<div class="lang-toggle">
+  <button onclick="setLang('ar')">عربي</button>
+  <button onclick="setLang('en')">English</button>
+</div>
+
+<div id="form-ar">
+  <h2>محاضر فرز الوحدات</h2>
+  <label>رقم الطلب:</label><input id="o" type="text">
+  <label>من:</label><input id="s" type="text" placeholder="1">
+  <label>إلى:</label><input id="e" type="text" placeholder="5">
+  <button id="go">عرض</button>
+</div>
+
+<div id="form-en" style="display:none">
+  <h2>Unit Merging PDFs</h2>
+  <label>Order No.:</label><input id="o" type="text">
+  <label>From:</label><input id="s" type="text" placeholder="1">
+  <label>To:</label><input id="e" type="text" placeholder="5">
+  <button id="go">Check</button>
+</div>
+
+<div id="wrap" style="display:none">
+  <div id="prog"><span></span></div>
+  <div id="pct">0 %</div>
+</div>
+
+<button id="download">تحميل الملف المدمج | Download Merged PDF</button>
+<div id="out"></div>
+</div>
+
+<script>
+function setLang(lang){
+  document.getElementById('form-ar').style.display = lang === 'ar' ? 'block' : 'none';
+  document.getElementById('form-en').style.display = lang === 'en' ? 'block' : 'none';
+}
+const btnGo=document.getElementById('go');
+const btnDl=document.getElementById('download');
+btnGo.onclick = () => {
+  const order=document.getElementById('o').value.trim();
+  const s=+document.getElementById('s').value, e=+document.getElementById('e').value;
+  if(!order||isNaN(s)||isNaN(e)||s>e) return alert('بيانات غير صحيحة / Invalid input.');
+
+  const bar=document.querySelector('#prog span');
+  const pct=document.getElementById('pct');
+  const wrap=document.getElementById('wrap');
+  const out=document.getElementById('out');
+  bar.style.width='0%'; pct.textContent='0 %';
+  out.innerHTML=''; wrap.style.display='block'; btnDl.style.display='none';
+
+  const good=[]; let total=0, done=0;
+  const es=new EventSource(`/stream?order=${order}&start=${s}&end=${e}`);
+  es.addEventListener('meta',e=>total=+e.data);
+  es.addEventListener('result',e=>{
+    done++;
+    const [rec,isDoc]=e.data.split('|');
+    const pc=Math.round(100*done/total);
+    bar.style.width=pc+'%'; pct.textContent=pc+' %';
+    if(isDoc==='true'){
+      good.push(rec);
+      const a=document.createElement('a');
+      a.href=`https://subdivision-services.rega.gov.sa/v/${order}/${rec}/30f8392c7677d6b404be0e2f5110b27b`;
+      a.target='_blank'; a.textContent=`${good.length}- PDF رقم ${rec}`;
+      out.appendChild(a);
+    }
+  });
+  es.addEventListener('done',()=>{
+    es.close();
+    if(!good.length){ out.textContent='لا ملفات رقمية / No digital files found.'; return; }
+    btnDl.style.display='inline-block';
+    btnDl.onclick = async ()=>{
+      btnDl.disabled=true; btnDl.textContent='جاري التحميل…';
+      const r=await fetch('/merge',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({order,list:good})});
+      const blob=await r.blob();
+      const url=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      link.href=url; link.download='merged.pdf'; link.click();
+      URL.revokeObjectURL(url);
+      btnDl.disabled=false; btnDl.textContent='تحميل الملف المدمج';
+    };
+  });
+};
+</script>
